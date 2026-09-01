@@ -1,0 +1,259 @@
+.zh-hover-popup {
+  position: fixed;
+  z-index: 9999;
+  max-width: 440px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-l, 0 4px 16px rgba(0, 0, 0, 0.3));
+  padding: 8px 12px 10px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.zh-hover-tabs {
+  display: flex;
+  gap: 4px;
+  margin: -2px -2px 6px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.zh-hover-tab {
+  appearance: none;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  padding: 4px 8px 6px;
+  margin: 0;
+  border-bottom: 2px solid transparent;
+}
+
+.zh-hover-tab:hover {
+  color: var(--text-normal);
+}
+
+.zh-hover-tab-active {
+  color: var(--interactive-accent);
+  border-bottom-color: var(--interactive-accent);
+}
+
+.zh-hover-word {
+  font-size: 22px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.zh-hover-entry {
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.zh-hover-entry:last-of-type {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.zh-hover-pinyin-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.zh-hover-pinyin {
+  font-size: 15px;
+}
+
+.zh-hover-play {
+  appearance: none;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  cursor: pointer;
+  padding: 0 2px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0.75;
+}
+
+.zh-hover-play:hover {
+  opacity: 1;
+}
+
+.zh-hover-alt {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.zh-hover-defs {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.zh-hover-defs li {
+  margin: 0;
+}
+
+.zh-hover-footer {
+  font-size: 10px;
+  color: var(--text-faint);
+  margin-top: 4px;
+  text-align: right;
+}
+
+/* Scrolling panels: a long list of meanings, or a long vertical stack of
+   characters in the Stroke Order tab, scrolls inside the popup instead of
+   growing it off-screen. */
+.zh-hover-panel {
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--background-modifier-border) transparent;
+}
+
+.zh-hover-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.zh-hover-panel::-webkit-scrollbar-thumb {
+  background: var(--background-modifier-border);
+  border-radius: 4px;
+}
+
+.zh-hover-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.zh-tone-1 { color: #e15554; }
+.zh-tone-2 { color: #d68a1f; }
+.zh-tone-3 { color: #3fa34d; }
+.zh-tone-4 { color: #5f7fe0; }
+
+.zh-hover-active {
+  color: var(--interactive-accent) !important;
+}
+
+.zh-hover-stroke-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* Words longer than two characters stack one-per-line instead of wrapping,
+   so each character stays a comfortable, readable size. */
+.zh-hover-stroke-panel-vertical {
+  flex-direction: column;
+  flex-wrap: nowrap;
+}
+
+.zh-hover-stroke-panel-vertical .zh-stroke-char {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+}
+
+.zh-stroke-char {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+}
+
+.zh-stroke-char:hover {
+  background: var(--background-modifier-hover);
+}
+
+.zh-stroke-svg {
+  background: var(--background-primary-alt, var(--background-secondary));
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.zh-stroke-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+}
+
+.zh-hover-stroke-panel-vertical .zh-stroke-info {
+  margin-top: 0;
+}
+
+.zh-stroke-caption {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: center;
+  max-width: 100px;
+}
+
+.zh-stroke-replay-btn {
+  appearance: none;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  cursor: pointer;
+  padding: 0 2px;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+
+.zh-stroke-replay-btn:hover {
+  opacity: 1;
+  color: var(--interactive-accent);
+}
+
+.zh-stroke-missing {
+  font-size: 40px;
+  width: 100px;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+  border: 1px dashed var(--background-modifier-border);
+  border-radius: 4px;
+}
+
+/* Fluid stroke reveal: each stroke eases in with a soft grow + fade instead
+   of an instant opacity jump. Duration/delay are set per-stroke from JS
+   (main.js: animateStrokes) so they follow the "Stroke animation speed"
+   setting; transition-property itself is also toggled from JS (off while
+   resetting for a replay, back to this value to actually animate) so a
+   replay click always restarts cleanly instead of interrupting whatever
+   transition was already running. The value below is just the initial/
+   fallback state before JS has touched a stroke at all. */
+.zh-stroke-anim-path {
+  opacity: 0;
+  transform: scale(0.55);
+  transform-box: fill-box;
+  transform-origin: center;
+  transition-property: opacity, transform;
+  transition-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.zh-stroke-anim-path.zh-stroke-revealed {
+  opacity: 1;
+  transform: scale(1);
+}
