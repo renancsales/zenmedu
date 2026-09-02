@@ -11,11 +11,10 @@ browser extension, itself a fork of [10ten Japanese
 Reader](https://github.com/birtles/10ten-ja-reader)) — built for anyone
 studying Chinese who takes notes in Obsidian.
 
+Made with the help of Claude.
+
 ![Preview of the Meaning and Stroke Order tabs](docs/demo.gif)
-*Preview — a styled mockup built from the plugin's real CSS and real
-stroke-order data, standing in until real in-app screenshots/GIFs are
-captured. See
-[Before submitting](#before-submitting-to-the-community-plugin-directory).*
+Preview of the meaning and stroke order tabs
 
 ## Features
 
@@ -113,27 +112,6 @@ from three separate open sources, each under its own license:
   pinyin text are unaffected — this only affects the audio button.
 - **Bundled data is large** (~50 MB total: dictionary, stroke outlines, and
   audio). See the note below before submitting.
-
-## Before submitting to the community plugin directory
-
-This repo is organized to become a plugin submission, but a few things are
-still worth doing first:
-
-- [x] Push this folder to a public GitHub repo
-      ([renancsales/zenmedu](https://github.com/renancsales/zenmedu)).
-- [ ] Replace `docs/demo.png` with a real screenshot or GIF captured from
-      an actual vault (Obsidian's plugin guidelines expect real
-      screenshots, not mockups).
-- [ ] Consider whether the ~50 MB of bundled data should ship in the repo
-      as-is, or be fetched on first load from a GitHub release asset
-      instead — Obsidian's reviewers do scrutinize large bundled binaries,
-      even when (as here) they're the whole point of the plugin.
-- [ ] Read through the current [Obsidian plugin submission
-      requirements](https://docs.obsidian.md/Plugins/Releasing/Submission+requirements+for+plugins)
-      for anything that's changed since this was written.
-- [ ] Tag a GitHub release matching the `version` in `manifest.json`, with
-      `main.js`, `manifest.json`, and `styles.css` attached as release
-      assets (the standard Obsidian plugin release format).
 
 ## Changelog
 
