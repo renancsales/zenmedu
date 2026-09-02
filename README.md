@@ -11,7 +11,7 @@ browser extension, itself a fork of [10ten Japanese
 Reader](https://github.com/birtles/10ten-ja-reader)) — built for anyone
 studying Chinese who takes notes in Obsidian.
 
-![Preview of the Meaning and Stroke Order tabs](docs/demo.png)
+![Preview of the Meaning and Stroke Order tabs](docs/demo.gif)
 *Preview — a styled mockup built from the plugin's real CSS and real
 stroke-order data, standing in until real in-app screenshots/GIFs are
 captured. See
