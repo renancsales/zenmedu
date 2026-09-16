@@ -89,15 +89,25 @@ Community plugins → Browse**.
 ## Data sources & credits
 
 This plugin's own code is MIT-licensed (see `LICENSE`), but it bundles data
-from three separate open sources, each under its own license:
+from four separate open sources, each under its own license:
 
 - **Dictionary** — [CC-CEDICT](https://cc-cedict.org/wiki/), published by
   MDBG. Licensed
   [CC BY-SA 3.0](http://creativecommons.org/licenses/by-sa/3.0/).
-- **Stroke order** — [Make Me a
+- **Part-of-speech tags** — merged into the dictionary data at build time
+  from [jieba](https://github.com/fxsjy/jieba)'s bundled word-frequency
+  dictionary (`dict.txt`), matched by headword. CC-CEDICT itself doesn't
+  tag grammar, so this is a separate source layered on top — MIT licensed.
+- **Stroke order** — outlines and medians from [Make Me a
   Hanzi](https://github.com/skishore/makemeahanzi) (`graphics.txt`),
-  derived from the Arphic PL KaitiM GB / PL UKai fonts. Licensed under the
-  Arphic Public License.
+  derived from the Arphic PL KaitiM GB / PL UKai fonts and licensed under
+  the Arphic Public License. The animation technique that grows each
+  stroke into its true shape is a from-scratch JS port of the algorithm
+  used by
+  [stroke-order-animator](https://github.com/chill-chinese/stroke-order-animator)
+  (a Flutter/Dart package, MIT licensed) — its actual code couldn't be
+  used directly since this plugin has no build step, but the underlying
+  math translates directly.
 - **Pronunciation audio** —
   [mp3-chinese-pinyin-sound](https://github.com/davinfifield/mp3-chinese-pinyin-sound)
   (1,632 per-syllable recordings, re-encoded to 32 kbps mono to shrink the
