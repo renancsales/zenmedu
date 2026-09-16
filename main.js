@@ -13,6 +13,245 @@ const DEFAULT_SETTINGS = {
   strokeSpeedMs: 550,
 };
 
+// ---------- stroke-order growth animation geometry ----------
+//
+// The Stroke Order tab's animation technique, ported (as an algorithm -
+// see below for why not as code) from chill-chinese/stroke-order-animator
+// (github.com/chill-chinese/stroke-order-animator): rather than clipping a
+// thick center-line stroke to the glyph's outline - the Hanzi Writer-style
+// technique tried in v1.5.0 and reverted in v1.5.1 because it looked
+// correct in every automated check but didn't actually render right
+// inside real Obsidian - each stroke's own OUTLINE is grown directly. The
+// median's start and end points are projected onto the outline, splitting
+// it into two contours that both run from "start" to "end" (one going
+// each way around). At progress t, a t-length fragment of each contour
+// (both measured from "start") is stitched into one filled shape, so the
+// shape grows from nothing at t=0 into the complete, exact stroke outline
+// at t=1 - through plain point math, with no CSS clip-path, dasharray, or
+// transitions anywhere (all suspects in the earlier real-Obsidian
+// failure). See animateStrokes below for how progress is actually driven
+// frame to frame.
+//
+// stroke-order-animator itself is a Flutter/Dart package built around
+// Flutter's own Canvas - it can't be installed into a build-tool-free,
+// plain-JS Obsidian plugin, so what's ported here is its algorithm
+// (lib/src/character_painter.dart), reimplemented from scratch in vanilla
+// JS. It operates on stroke outline `d` strings that only ever use
+// absolute M/L/Q/C/Z commands (confirmed against every character in Make
+// Me a Hanzi's graphics.txt, the same data source this plugin already
+// uses), so a small hand-rolled flattener below turns them into plain
+// point polylines rather than depending on
+// SVGGeometryElement.getPointAtLength - which keeps this both testable
+// under plain Node (no real SVG DOM needed) and dependency-free.
+
+function distance2D(a, b) {
+  return Math.hypot(a[0] - b[0], a[1] - b[1]);
+}
+
+// Turns an SVG path `d` string (absolute M/L/Q/C/Z only) into a flat
+// polyline: an array of [x, y] points dense enough to treat as
+// piecewise-linear for length/animation purposes.
+function flattenPathToPolyline(d, curveSegments) {
+  const segments = curveSegments || 16;
+  const tokens = d.match(/[MLQCZ]|-?\d+(?:\.\d+)?/gi) || [];
+  const points = [];
+  let i = 0;
+  let cx = 0;
+  let cy = 0;
+  let sx = 0;
+  let sy = 0;
+
+  const num = () => parseFloat(tokens[i++]);
+
+  while (i < tokens.length) {
+    const cmd = tokens[i++];
+    if (cmd === 'M' || cmd === 'm') {
+      cx = num();
+      cy = num();
+      sx = cx;
+      sy = cy;
+      points.push([cx, cy]);
+    } else if (cmd === 'L' || cmd === 'l') {
+      cx = num();
+      cy = num();
+      points.push([cx, cy]);
+    } else if (cmd === 'Q' || cmd === 'q') {
+      const p1x = num();
+      const p1y = num();
+      const p2x = num();
+      const p2y = num();
+      for (let s = 1; s <= segments; s++) {
+        const t = s / segments;
+        const mt = 1 - t;
+        points.push([
+          mt * mt * cx + 2 * mt * t * p1x + t * t * p2x,
+          mt * mt * cy + 2 * mt * t * p1y + t * t * p2y,
+        ]);
+      }
+      cx = p2x;
+      cy = p2y;
+    } else if (cmd === 'C' || cmd === 'c') {
+      const p1x = num();
+      const p1y = num();
+      const p2x = num();
+      const p2y = num();
+      const p3x = num();
+      const p3y = num();
+      for (let s = 1; s <= segments; s++) {
+        const t = s / segments;
+        const mt = 1 - t;
+        points.push([
+          mt * mt * mt * cx + 3 * mt * mt * t * p1x + 3 * mt * t * t * p2x + t * t * t * p3x,
+          mt * mt * mt * cy + 3 * mt * mt * t * p1y + 3 * mt * t * t * p2y + t * t * t * p3y,
+        ]);
+      }
+      cx = p3x;
+      cy = p3y;
+    } else if (cmd === 'Z' || cmd === 'z') {
+      if (cx !== sx || cy !== sy) points.push([sx, sy]);
+      cx = sx;
+      cy = sy;
+    }
+  }
+
+  return points;
+}
+
+function cumulativeLengths(points) {
+  const cum = [0];
+  for (let i = 1; i < points.length; i++) {
+    cum.push(cum[i - 1] + distance2D(points[i - 1], points[i]));
+  }
+  return cum;
+}
+
+function pointAtLength(points, cum, len) {
+  const total = cum[cum.length - 1];
+  const clamped = Math.max(0, Math.min(len, total));
+  if (clamped <= 0) return points[0];
+  if (clamped >= total) return points[points.length - 1];
+  let i = 0;
+  while (i < cum.length - 2 && cum[i + 1] < clamped) i++;
+  const segLen = cum[i + 1] - cum[i];
+  const t = segLen === 0 ? 0 : (clamped - cum[i]) / segLen;
+  return [
+    points[i][0] + (points[i + 1][0] - points[i][0]) * t,
+    points[i][1] + (points[i + 1][1] - points[i][1]) * t,
+  ];
+}
+
+// The distance-along-the-polyline of the sample point closest to `target`.
+function closestLength(points, cum, target) {
+  let best = Infinity;
+  let bestLen = 0;
+  for (let i = 0; i < points.length; i++) {
+    const d = distance2D(points[i], target);
+    if (d < best) {
+      best = d;
+      bestLen = cum[i];
+    }
+  }
+  return bestLen;
+}
+
+// The portion of a polyline between two lengths [from, to] (from <= to),
+// with exact interpolated endpoints so growth looks smooth rather than
+// snapping between sampled vertices.
+function extractSubPolyline(points, cum, from, to) {
+  const total = cum[cum.length - 1];
+  const a = Math.max(0, Math.min(from, total));
+  const b = Math.max(0, Math.min(to, total));
+  if (b <= a) return [pointAtLength(points, cum, a)];
+  const out = [pointAtLength(points, cum, a)];
+  for (let i = 0; i < points.length; i++) {
+    if (cum[i] > a && cum[i] < b) out.push(points[i]);
+  }
+  out.push(pointAtLength(points, cum, b));
+  return out;
+}
+
+function polylineWithLengths(points) {
+  return { points, cum: cumulativeLengths(points) };
+}
+
+// Splits a closed outline polyline into two contours that both run from
+// the point at `startLen` to the point at `endLen` - one going forward
+// along the outline, the other going the rest of the way around. Mirrors
+// stroke_order_animator's `_extractContourPaths`.
+function splitOutlineAtLengths(outline, startLen, endLen) {
+  const points = outline.points;
+  const cum = outline.cum;
+  const total = cum[cum.length - 1];
+  let path1;
+  let path2;
+
+  if (endLen > startLen) {
+    path1 = extractSubPolyline(points, cum, startLen, endLen);
+    const tail = extractSubPolyline(points, cum, endLen, total);
+    const wrap = extractSubPolyline(points, cum, 0, startLen);
+    path2 = tail.concat(wrap.slice(1));
+  } else {
+    const head = extractSubPolyline(points, cum, startLen, total);
+    const wrap = extractSubPolyline(points, cum, 0, endLen);
+    path1 = head.concat(wrap.slice(1));
+    path2 = extractSubPolyline(points, cum, endLen, startLen);
+  }
+
+  return { path1: polylineWithLengths(path1), path2: polylineWithLengths(path2) };
+}
+
+// Precomputes everything growthPathD needs to grow one stroke's outline
+// from nothing (t=0) to the complete shape (t=1). Returns null if the
+// stroke has no usable median (missing data, or a degenerate single-point
+// median, e.g. some dot strokes) - callers fall back to a plain fade-in
+// for those instead.
+function buildStrokeGrowth(outlineD, median) {
+  if (!median || median.length < 2) return null;
+
+  const outlinePoints = flattenPathToPolyline(outlineD);
+  if (outlinePoints.length < 3) return null;
+
+  const outline = polylineWithLengths(outlinePoints);
+  const total = outline.cum[outline.cum.length - 1];
+  if (total <= 0) return null;
+
+  const startLen = closestLength(outlinePoints, outline.cum, median[0]);
+  const endLen = closestLength(outlinePoints, outline.cum, median[median.length - 1]);
+  if (startLen === endLen) return null;
+
+  const split = splitOutlineAtLengths(outline, startLen, endLen);
+  const len1 = split.path1.cum[split.path1.cum.length - 1];
+  const len2 = split.path2.cum[split.path2.cum.length - 1];
+  if (len1 <= 0 || len2 <= 0) return null;
+
+  return { path1: split.path1, path2: split.path2, len1, len2 };
+}
+
+// Renders a stroke's growth at progress t (0..1) as an SVG path `d`
+// string: empty at t=0, exactly the full stroke outline at t=1. Filling
+// an open path implicitly closes it with a straight line back to the
+// first point, which is exactly what's wanted here (see
+// buildStrokeGrowth's doc comment above).
+function growthPathD(growth, t) {
+  const clamped = Math.max(0, Math.min(1, t));
+  if (clamped <= 0) return '';
+
+  const frag1 = extractSubPolyline(growth.path1.points, growth.path1.cum, 0, clamped * growth.len1);
+  const frag2 = extractSubPolyline(
+    growth.path2.points,
+    growth.path2.cum,
+    (1 - clamped) * growth.len2,
+    growth.len2
+  );
+  const combined = frag1.concat(frag2);
+
+  return 'M ' + combined.map((pt) => `${pt[0].toFixed(2)} ${pt[1].toFixed(2)}`).join(' L ') + ' Z';
+}
+
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
 // CJK Unified Ideographs + Extension A + Compatibility Ideographs.
 const CJK_RE = /[\u3400-\u9fff\uf900-\ufaff]/;
 
@@ -137,6 +376,16 @@ class ZhongwenHoverPlugin extends Plugin {
     if (this.popupEl) this.popupEl.remove();
   }
 
+  // cedict.json's entries are [traditional, simplified, pinyin, definitions,
+  // partOfSpeech]. The part-of-speech field (a short label like "noun",
+  // "verb", "measure word") is NOT part of CC-CEDICT itself - CC-CEDICT
+  // doesn't tag grammar at all - it's merged in at build time from jieba's
+  // (github.com/fxsjy/jieba, MIT) word-frequency dictionary, matched by
+  // headword. That source only tags ~75% of CC-CEDICT's entries, and it
+  // tags one label per WORD rather than per reading, so a rarer reading of
+  // a highly polyphonic character can inherit its more common reading's
+  // label. It's empty ('') wherever no match was found - see
+  // renderMeaningPanel, which just omits the badge in that case.
   async loadDictionary() {
     try {
       const dir = this.manifest.dir;
@@ -447,7 +696,7 @@ class ZhongwenHoverPlugin extends Plugin {
   renderMeaningPanel(el, match) {
     const panel = el.createDiv({ cls: 'zh-hover-panel' });
 
-    match.entries.slice(0, this.settings.maxEntries).forEach(([trad, simp, pinyin, defsRaw]) => {
+    match.entries.slice(0, this.settings.maxEntries).forEach(([trad, simp, pinyin, defsRaw, pos]) => {
       const block = panel.createDiv({ cls: 'zh-hover-entry' });
 
       const pinyinRow = block.createDiv({ cls: 'zh-hover-pinyin-row' });
@@ -457,6 +706,12 @@ class ZhongwenHoverPlugin extends Plugin {
         const span = pinyinEl.createSpan({ text: tok.text + (ti < tokens.length - 1 ? ' ' : '') });
         if (this.settings.toneColors && tok.tone) span.addClass(`zh-tone-${tok.tone}`);
       });
+      // Part-of-speech tag (noun/verb/adjective/measure word/etc.), when
+      // available - see loadDictionary's comment on where these come from.
+      // Not every entry has one (see settings tab / README for coverage).
+      if (pos) {
+        pinyinRow.createSpan({ cls: 'zh-hover-pos', text: pos });
+      }
       if (this.audioSet) {
         pinyinRow.createEl('button', {
           cls: 'zh-hover-play',
@@ -541,10 +796,19 @@ class ZhongwenHoverPlugin extends Plugin {
     const anim = document.createElementNS(NS, 'g');
     anim.setAttribute('transform', 'scale(1,-1) translate(0,-900)');
     anim.setAttribute('style', 'fill: var(--interactive-accent);');
-    data.s.forEach((d) => {
+    data.s.forEach((d, i) => {
       const p = document.createElementNS(NS, 'path');
-      p.setAttribute('d', d);
       p.addClass('zh-stroke-anim-path');
+      // Precomputed once per stroke (see the stroke-growth geometry
+      // helpers up top); replaying just re-drives progress through this
+      // same data. Strokes with no usable median - missing entirely, or a
+      // degenerate single-point one, e.g. some dot strokes - fall back to
+      // a plain fade-in of the full outline instead of growing.
+      const median = data.m && data.m[i];
+      p.zhGrowth = buildStrokeGrowth(d, median);
+      if (!p.zhGrowth) {
+        p.setAttribute('d', d);
+      }
       anim.appendChild(p);
     });
     svg.appendChild(anim);
@@ -552,53 +816,79 @@ class ZhongwenHoverPlugin extends Plugin {
     return svg;
   }
 
-  // Reveals each stroke in turn via a CSS opacity+scale transition (a
-  // 'zh-stroke-revealed' class toggle) rather than a per-stroke JS timer -
-  // the browser's own transition handles the easing, so strokes materialize
-  // smoothly instead of popping in on a fixed tick. strokeSpeedMs still
-  // controls the pacing between strokes; the transition duration is a
-  // fraction of it so consecutive strokes blend into one continuous motion.
+  // Grows each stroke's true glyph-shaped outline into place via
+  // requestAnimationFrame, updating its `d` attribute directly frame by
+  // frame (see the stroke-growth geometry helpers up top for how the
+  // shape itself is computed) - deliberately not a CSS transition and not
+  // a clip-path, since a Hanzi Writer-style version of this animation
+  // that used exactly those two things looked correct in every automated
+  // check but didn't actually render right inside real Obsidian (v1.5.0,
+  // reverted in v1.5.1). strokeSpeedMs still controls the pacing between
+  // strokes; each stroke's own reveal takes a fraction of that so
+  // consecutive strokes blend into one continuous motion, eased with
+  // easeInOutCubic so it doesn't look mechanically linear.
   //
   // Replaying (see replayStrokeAnimation) calls this again on an svg that
-  // may already be mid-reveal or fully revealed. To make that an actual
-  // restart rather than an interrupted, unpredictable transition, every
-  // stroke is first switched to transition-property: none and snapped
-  // straight back to hidden - so removing 'zh-stroke-revealed' can't itself
-  // animate using stale duration/delay values left over from the run being
-  // interrupted. Only after that reset is forced to commit (a layout read)
-  // are transitions turned back on with this run's duration/delay, and only
-  // then does 'zh-stroke-revealed' go back on to start the reveal - so
-  // clicking the replay button always restarts every stroke from scratch,
-  // no matter what state the animation was in when it was clicked.
+  // may already be mid-reveal or fully revealed. Any in-flight animation
+  // loop for this svg is cancelled first, then every stroke is snapped
+  // back to its undrawn state (empty `d` for growth strokes, opacity 0
+  // for fallback ones) before a fresh loop starts from a new start time -
+  // there's no CSS transition state that can be interrupted or carried
+  // over here, so a replay always restarts cleanly from scratch.
   animateStrokes(svg) {
+    if (svg.zhAnimHandle != null) {
+      cancelAnimationFrame(svg.zhAnimHandle);
+      svg.zhAnimHandle = null;
+    }
+
     const stepMs = this.settings.strokeSpeedMs || DEFAULT_SETTINGS.strokeSpeedMs;
     const duration = Math.max(200, Math.min(Math.round(stepMs * 0.9), 480));
-    const paths = svg.querySelectorAll('.zh-stroke-anim-path');
+    const paths = Array.from(svg.querySelectorAll('.zh-stroke-anim-path'));
 
     paths.forEach((p) => {
-      p.style.transitionProperty = 'none';
       p.removeClass('zh-stroke-revealed');
+      if (p.zhGrowth) {
+        p.setAttribute('d', '');
+      } else {
+        p.style.opacity = '0';
+      }
     });
 
-    // Force layout so the "hidden, no transition" reset above is committed
-    // before anything below changes it - otherwise the browser can
-    // coalesce all of these changes into one and either skip straight to
-    // the end state or carry over the interrupted transition instead of
-    // cleanly restarting it.
-    void svg.getBoundingClientRect();
+    const startTime = performance.now();
 
-    paths.forEach((p, i) => {
-      p.style.transitionProperty = 'opacity, transform';
-      p.style.transitionDuration = `${duration}ms`;
-      p.style.transitionDelay = `${stepMs * i}ms`;
-    });
+    const step = () => {
+      const elapsed = performance.now() - startTime;
+      let anyPending = false;
 
-    // Force layout again so the "hidden, transitions back on" state above
-    // is committed before the class goes back on below - same reasoning as
-    // the first forced layout.
-    void svg.getBoundingClientRect();
+      paths.forEach((p, i) => {
+        if (p.hasClass('zh-stroke-revealed')) return;
 
-    paths.forEach((p) => p.addClass('zh-stroke-revealed'));
+        const local = (elapsed - stepMs * i) / duration;
+        if (local < 0) {
+          anyPending = true;
+          return;
+        }
+
+        const t = Math.max(0, Math.min(1, local));
+        const eased = easeInOutCubic(t);
+
+        if (p.zhGrowth) {
+          p.setAttribute('d', growthPathD(p.zhGrowth, eased));
+        } else {
+          p.style.opacity = String(eased);
+        }
+
+        if (t >= 1) {
+          p.addClass('zh-stroke-revealed');
+        } else {
+          anyPending = true;
+        }
+      });
+
+      svg.zhAnimHandle = anyPending ? requestAnimationFrame(step) : null;
+    };
+
+    svg.zhAnimHandle = requestAnimationFrame(step);
   }
 
   replayStrokeAnimation(charBox) {

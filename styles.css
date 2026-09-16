@@ -73,6 +73,19 @@
   font-size: 15px;
 }
 
+/* Part-of-speech badge (noun/verb/adjective/measure word/etc.) next to the
+   pinyin - see main.js: loadDictionary's comment for where this data comes
+   from and why it's not on every entry. */
+.zh-hover-pos {
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--background-modifier-border);
+  border-radius: 3px;
+  padding: 1px 6px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
 .zh-hover-play {
   appearance: none;
   background: transparent;
@@ -236,24 +249,16 @@
   border-radius: 4px;
 }
 
-/* Fluid stroke reveal: each stroke eases in with a soft grow + fade instead
-   of an instant opacity jump. Duration/delay are set per-stroke from JS
-   (main.js: animateStrokes) so they follow the "Stroke animation speed"
-   setting; transition-property itself is also toggled from JS (off while
-   resetting for a replay, back to this value to actually animate) so a
-   replay click always restarts cleanly instead of interrupting whatever
-   transition was already running. The value below is just the initial/
-   fallback state before JS has touched a stroke at all. */
+/* Stroke reveal: each stroke's true glyph-shaped outline grows into place
+   via JS updating its `d` attribute directly, frame by frame (main.js:
+   animateStrokes) - not a CSS transition and not a clip-path, on purpose:
+   an earlier version of this animation used exactly those two CSS
+   features and looked correct in every automated check but didn't
+   actually render right inside real Obsidian. A stroke with no usable
+   median (rare - very short/degenerate ones) falls back to a plain
+   JS-driven opacity fade instead of growing; opacity is otherwise left at
+   1 here since a growing stroke's shape - not its opacity - is what
+   changes. */
 .zh-stroke-anim-path {
-  opacity: 0;
-  transform: scale(0.55);
-  transform-box: fill-box;
-  transform-origin: center;
-  transition-property: opacity, transform;
-  transition-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
-}
-
-.zh-stroke-anim-path.zh-stroke-revealed {
   opacity: 1;
-  transform: scale(1);
 }

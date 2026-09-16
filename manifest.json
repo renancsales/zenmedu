@@ -1,7 +1,7 @@
 {
   "id": "zenmedu",
   "name": "Zenme Du",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "minAppVersion": "1.4.0",
   "description": "Hold Shift (configurable) and hover Chinese text for CC-CEDICT pinyin/definitions with audio pronunciation and a stroke-order tab. Press Tab to pin the popup open — the same dictionary LingLook uses.",
   "author": "Renan",
